@@ -151,7 +151,7 @@ const CONFIG = {
   DOCUSEAL_LINK: 'https://docuseal.com/d/DH2qvS9w2rJQgS',
   SHEETS_API_KEY: 'AIzaSyDDOCe3FowhAtn1r0NiVg7J-JtLlsbfKJ4',
   SHEET_ID: '10bUaOMgh0NUkVcKfWbSAk7jP67OYA7zz4djJVquqKIM',
-  SHEET_RANGE: "'Paiements Clients'!A:K",  // 🆕 Onglet "Paiements Clients" jusqu'à colonne K
+  SHEET_RANGE: 'Paiements Clients!A:K',  // 🆕 Onglet sans guillemets
   CGV_URL: 'https://aroulin31-debug.github.io/lewa-onboarding/cgv.pdf',
 };
 
@@ -165,7 +165,7 @@ async function loadSheet() {
   document.getElementById('sheet-status').textContent = '⏳ Chargement du Google Sheet...';
   document.getElementById('sheet-status').className = 'sheet-status';
   try {
-    const url = `https://sheets.googleapis.com/v4/spreadsheets/${CONFIG.SHEET_ID}/values/${CONFIG.SHEET_RANGE}?key=${CONFIG.SHEETS_API_KEY}`;
+    const url = `https://sheets.googleapis.com/v4/spreadsheets/${CONFIG.SHEET_ID}/values/${encodeURIComponent(CONFIG.SHEET_RANGE)}?key=${CONFIG.SHEETS_API_KEY}`;
     const res = await fetch(url);
     const data = await res.json();
     if (!data.values) throw new Error('Impossible de lire le Sheet');
