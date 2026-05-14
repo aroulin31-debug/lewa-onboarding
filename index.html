@@ -6,6 +6,7 @@
 <title>LEWA Academy — Onboarding</title>
 <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
 <style>
   :root { --blue: #1A3C6E; --blue-light: #2D5FA6; --gold: #C9A84C; --light: #F5F7FA; --white: #ffffff; --gray: #6B7280; }
@@ -292,8 +293,8 @@ function resetWorkflow() {
 }
 
 // ── GÉNÉRATION FACTURE HTML (prix dynamique) ──
-function generateInvoiceHTML(client) {
-  // 🆕 Calcul à partir du prix lu dans le Sheet
+// ── GÉNÉRATION FACTURE DIRECTEMENT EN PDF (jsPDF) ──
+function generateInvoicePdfBlob(client) {
   const prixTotal = client.prix;
   const montantNum = client.paiement === '2x' ? prixTotal / 2 : prixTotal;
   const montant = montantNum.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -303,99 +304,140 @@ function generateInvoiceHTML(client) {
   const descLigne2 = client.paiement === '2x' 
     ? `Acompte de 50% à la commande sur un total de ${prixTotalFormat} €.` 
     : 'Paiement en une fois.';
-  const moyenLabel = client.moyen === 'Stripe' ? `Paiement effectué par carte bancaire le ${client.date}.` : `Paiement effectué par virement bancaire le ${client.date}.`;
+  const moyenLabel = client.moyen === 'Stripe' 
+    ? `Paiement effectué par carte bancaire le ${client.date}.` 
+    : `Paiement effectué par virement bancaire le ${client.date}.`;
   
-  return `
-  <div style="font-family:Arial,sans-serif;font-size:13px;color:#333;padding:20mm;background:white;width:170mm;">
-    <h1 style="font-size:28px;color:#1A3C6E;margin:0 0 4px 0;">Facture</h1>
-    <div style="color:#555;font-size:12px;margin-bottom:20px;">
-      Numéro : F-2026-AUTO<br>
-      Date : ${client.date}
-    </div>
-    <div style="display:flex;justify-content:space-between;margin-bottom:24px;">
-      <div style="width:48%;">
-        <strong style="display:block;font-size:13px;color:#1A3C6E;margin-bottom:6px;">Learn Languages With Antoine</strong>
-        <p style="margin:2px 0;font-size:12px;">60 rue François 1er, 75008 Paris</p>
-        <p style="margin:2px 0;font-size:12px;">hello@englishwithantoine.com</p>
-        <p style="margin:2px 0;font-size:12px;">SIREN : 102244829</p>
-      </div>
-      <div style="width:48%;">
-        <strong style="display:block;font-size:13px;color:#1A3C6E;margin-bottom:6px;">${client.nom}</strong>
-        <p style="margin:2px 0;font-size:12px;">${client.adresse||''}</p>
-        <p style="margin:2px 0;font-size:12px;">${client.email||''}</p>
-      </div>
-    </div>
-    <hr style="border:none;border-top:1px solid #ddd;margin:20px 0;">
-    <table style="width:100%;border-collapse:collapse;margin-bottom:20px;">
-      <thead>
-        <tr>
-          <th style="background:#f0f4fa;color:#1A3C6E;padding:8px 10px;text-align:left;font-size:12px;">Description</th>
-          <th style="background:#f0f4fa;color:#1A3C6E;padding:8px 10px;text-align:left;font-size:12px;">Qté</th>
-          <th style="background:#f0f4fa;color:#1A3C6E;padding:8px 10px;text-align:left;font-size:12px;">Prix HT</th>
-          <th style="background:#f0f4fa;color:#1A3C6E;padding:8px 10px;text-align:left;font-size:12px;">TVA</th>
-          <th style="background:#f0f4fa;color:#1A3C6E;padding:8px 10px;text-align:left;font-size:12px;">Total TTC</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td style="padding:10px;border-bottom:1px solid #eee;font-size:12px;">
-            <strong>${descLigne1}</strong><br>${descLigne2}
-          </td>
-          <td style="padding:10px;border-bottom:1px solid #eee;font-size:12px;">1</td>
-          <td style="padding:10px;border-bottom:1px solid #eee;font-size:12px;">${montant} €</td>
-          <td style="padding:10px;border-bottom:1px solid #eee;font-size:12px;">0%</td>
-          <td style="padding:10px;border-bottom:1px solid #eee;font-size:12px;"><strong>${montant} €</strong></td>
-        </tr>
-      </tbody>
-    </table>
-    <div style="text-align:right;margin-bottom:20px;">
-      <div style="margin:4px 0;">TOTAL HT : ${montant} €</div>
-      <div style="margin:4px 0;">TOTAL TVA : 0,00 €</div>
-      <div style="font-weight:bold;font-size:14px;color:#1A3C6E;margin:4px 0;">TOTAL TTC : ${montant} €</div>
-    </div>
-    <div style="background:#f8faff;border-radius:8px;padding:14px;font-size:12px;color:#555;">
-      <strong>Paiement</strong><br>
-      ${moyenLabel}<br>
-      Facture acquittée le ${client.date}.<br>
-      TVA non applicable, article 293 B du CGI.
-    </div>
-    <div style="margin-top:40px;font-size:10px;color:#999;border-top:1px solid #eee;padding-top:10px;">
-      Learn Languages With Antoine, SASU, SIREN N°102244829, 60 rue François 1er 75008 Paris
-    </div>
-  </div>
-  `;
-}
-
-// ── CONVERSION HTML → PDF (Blob) ──
-async function htmlToPdfBlob(htmlString) {
-  // Crée un container visible mais hors écran pour que le navigateur le rende
-  const container = document.createElement('div');
-  container.innerHTML = htmlString;
-  container.style.position = 'fixed';
-  container.style.top = '0';
-  container.style.left = '0';
-  container.style.width = '210mm';
-  container.style.background = 'white';
-  container.style.zIndex = '-9999';
-  container.style.opacity = '0.01';
-  document.body.appendChild(container);
+  // Crée le PDF
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
   
-  // Attend que le DOM soit rendu (important pour html2pdf)
-  await new Promise(resolve => setTimeout(resolve, 200));
+  const blueColor = [26, 60, 110];
+  const grayColor = [85, 85, 85];
+  const lightGray = [200, 200, 200];
   
-  try {
-    const opt = {
-      margin: 10,
-      filename: 'facture.pdf',
-      image: { type: 'jpeg', quality: 0.95 },
-      html2canvas: { scale: 2, useCORS: true, logging: false, backgroundColor: '#ffffff' },
-      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
-    };
-    const blob = await html2pdf().set(opt).from(container).outputPdf('blob');
-    return blob;
-  } finally {
-    document.body.removeChild(container);
+  let y = 20;
+  
+  // Titre "Facture"
+  doc.setFontSize(28);
+  doc.setTextColor(...blueColor);
+  doc.setFont('helvetica', 'bold');
+  doc.text('Facture', 20, y);
+  y += 8;
+  
+  // Numéro + Date
+  doc.setFontSize(10);
+  doc.setTextColor(...grayColor);
+  doc.setFont('helvetica', 'normal');
+  doc.text('Numéro : F-2026-AUTO', 20, y);
+  y += 5;
+  doc.text(`Date : ${client.date}`, 20, y);
+  y += 12;
+  
+  // Parties : émetteur (gauche) et client (droite)
+  doc.setFontSize(11);
+  doc.setTextColor(...blueColor);
+  doc.setFont('helvetica', 'bold');
+  doc.text('Learn Languages With Antoine', 20, y);
+  doc.text(client.nom, 110, y);
+  y += 6;
+  
+  doc.setFontSize(9);
+  doc.setTextColor(...grayColor);
+  doc.setFont('helvetica', 'normal');
+  doc.text('60 rue François 1er, 75008 Paris', 20, y);
+  if (client.adresse) {
+    const adresseLines = doc.splitTextToSize(client.adresse, 80);
+    doc.text(adresseLines, 110, y);
+    y += 5;
+  } else {
+    y += 5;
   }
+  doc.text('hello@englishwithantoine.com', 20, y);
+  if (client.email) doc.text(client.email, 110, y);
+  y += 5;
+  doc.text('SIREN : 102244829', 20, y);
+  y += 12;
+  
+  // Ligne séparatrice
+  doc.setDrawColor(...lightGray);
+  doc.line(20, y, 190, y);
+  y += 8;
+  
+  // En-tête du tableau
+  doc.setFillColor(240, 244, 250);
+  doc.rect(20, y - 4, 170, 10, 'F');
+  doc.setFontSize(10);
+  doc.setTextColor(...blueColor);
+  doc.setFont('helvetica', 'bold');
+  doc.text('Description', 22, y + 2);
+  doc.text('Qté', 110, y + 2);
+  doc.text('Prix HT', 125, y + 2);
+  doc.text('TVA', 150, y + 2);
+  doc.text('Total TTC', 168, y + 2);
+  y += 12;
+  
+  // Ligne de la facture
+  doc.setTextColor(50, 50, 50);
+  doc.setFont('helvetica', 'bold');
+  doc.text(descLigne1, 22, y);
+  y += 4;
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+  const descLines = doc.splitTextToSize(descLigne2, 80);
+  doc.text(descLines, 22, y);
+  
+  doc.setFontSize(10);
+  doc.text('1', 110, y - 2);
+  doc.text(`${montant} €`, 125, y - 2);
+  doc.text('0%', 150, y - 2);
+  doc.setFont('helvetica', 'bold');
+  doc.text(`${montant} €`, 168, y - 2);
+  
+  y += Math.max(8, descLines.length * 4);
+  doc.setDrawColor(230, 230, 230);
+  doc.line(20, y, 190, y);
+  y += 10;
+  
+  // Totaux à droite
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(...grayColor);
+  doc.text(`TOTAL HT : ${montant} €`, 190, y, { align: 'right' });
+  y += 5;
+  doc.text('TOTAL TVA : 0,00 €', 190, y, { align: 'right' });
+  y += 6;
+  doc.setFontSize(12);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(...blueColor);
+  doc.text(`TOTAL TTC : ${montant} €`, 190, y, { align: 'right' });
+  y += 15;
+  
+  // Encadré paiement
+  doc.setFillColor(248, 250, 255);
+  doc.rect(20, y, 170, 28, 'F');
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(...blueColor);
+  doc.text('Paiement', 24, y + 6);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(...grayColor);
+  doc.setFontSize(9);
+  doc.text(moyenLabel, 24, y + 12);
+  doc.text(`Facture acquittée le ${client.date}.`, 24, y + 17);
+  doc.text('TVA non applicable, article 293 B du CGI.', 24, y + 22);
+  y += 38;
+  
+  // Footer
+  doc.setDrawColor(230, 230, 230);
+  doc.line(20, y, 190, y);
+  y += 5;
+  doc.setFontSize(8);
+  doc.setTextColor(150, 150, 150);
+  doc.text('Learn Languages With Antoine, SASU, SIREN N°102244829, 60 rue François 1er 75008 Paris', 20, y);
+  
+  // Retourne le blob
+  return doc.output('blob');
 }
 
 // ── CONVERSION BLOB → BASE64 ──
@@ -442,11 +484,9 @@ async function launchOnboarding() {
     setProgress(10, 'Génération de la facture...');
     log(`Démarrage onboarding pour ${currentClient.nom}`, 'info');
     log(`Prix total : ${currentClient.prix.toLocaleString('fr-FR')} € | Montant facturé : ${montantFacture.toLocaleString('fr-FR')} € (${currentClient.paiement})`, 'info');
-    log('Génération du HTML de la facture...', 'info');
-    const invoiceHTML = generateInvoiceHTML(currentClient);
+    log('Génération de la facture PDF...', 'info');
     
-    log('Conversion HTML → PDF...', 'info');
-    const factureBlob = await htmlToPdfBlob(invoiceHTML);
+    const factureBlob = generateInvoicePdfBlob(currentClient);
     const factureSizeKB = Math.round(factureBlob.size / 1024);
     log(`Facture PDF générée (${factureSizeKB} Ko) ✅`, 'success');
     
