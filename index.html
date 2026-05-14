@@ -150,7 +150,7 @@ const CONFIG = {
   QUESTIONNAIRE: 'https://forms.gle/e171r44qzrzX2qUN7',
   DOCUSEAL_LINK: 'https://docuseal.com/d/DH2qvS9w2rJQgS',
   SHEETS_API_KEY: 'AIzaSyDDOCe3FowhAtn1r0NiVg7J-JtLlsbfKJ4',
-  SHEET_ID: '19PDgyVW-X52S_GKf_62InfDkLu9T2t3_n7vg_39OTco',
+  SHEET_ID: '10bUaOMgh0NUkVcKfWbSAk7jP67OYA7zz4djJVquqKIM',
   SHEET_RANGE: 'A:K',  // 🆕 Étendu jusqu'à la colonne K (prix)
   CGV_URL: 'https://aroulin31-debug.github.io/lewa-onboarding/cgv.pdf',
 };
@@ -437,15 +437,52 @@ hello@englishwithantoine.com
 
     const nomFichier = currentClient.nom.replace(/\s+/g, '_');
 
-    await emailjs.send(CONFIG.EMAILJS_SERVICE_ID, CONFIG.EMAILJS_TEMPLATE_ID, {
+    // 🆕 On utilise sendForm avec un vrai formulaire HTML pour passer
+    // les fichiers en pièce jointe (pas de limite de 50 Ko)
+    const form = document.createElement('form');
+    form.style.display = 'none';
+    
+    // Champs texte
+    const fields = {
       subject: 'Bienvenue dans la LEWA Academy',
       to_email: email,
-      message: message,
-      facture_name: `Facture_${nomFichier}.pdf`,
-      facture_content: factureBase64,
-      cgv_name: 'CGV_LEWA_Academy.pdf',
-      cgv_content: cgvBase64,
-    });
+      message: message
+    };
+    for (const [name, value] of Object.entries(fields)) {
+      const input = document.createElement('input');
+      input.type = 'hidden';
+      input.name = name;
+      input.value = value;
+      form.appendChild(input);
+    }
+    
+    // Champ fichier : Facture
+    const factureInput = document.createElement('input');
+    factureInput.type = 'file';
+    factureInput.name = 'facture';
+    const factureFile = new File([factureBlob], `Facture_${nomFichier}.pdf`, { type: 'application/pdf' });
+    const factureDT = new DataTransfer();
+    factureDT.items.add(factureFile);
+    factureInput.files = factureDT.files;
+    form.appendChild(factureInput);
+    
+    // Champ fichier : CGV
+    const cgvInput = document.createElement('input');
+    cgvInput.type = 'file';
+    cgvInput.name = 'cgv';
+    const cgvFile = new File([cgvBlob], 'CGV_LEWA_Academy.pdf', { type: 'application/pdf' });
+    const cgvDT = new DataTransfer();
+    cgvDT.items.add(cgvFile);
+    cgvInput.files = cgvDT.files;
+    form.appendChild(cgvInput);
+    
+    document.body.appendChild(form);
+    
+    try {
+      await emailjs.sendForm(CONFIG.EMAILJS_SERVICE_ID, CONFIG.EMAILJS_TEMPLATE_ID, form);
+    } finally {
+      document.body.removeChild(form);
+    }
 
     log(`Email + 2 pièces jointes envoyés à ${email} ✅`, 'success');
     setStep(3, 'success');
