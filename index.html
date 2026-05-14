@@ -141,6 +141,22 @@
       <button class="btn btn-gold" id="launch-btn" onclick="launchOnboarding()">🚀 Lancer l'onboarding complet</button>
     </div>
   </div>
+
+  <!-- 🆕 CARTE : ENVOI RATTRAPAGE FACTURES -->
+  <div class="card">
+    <div class="card-header">
+      <div class="card-icon">📧</div>
+      <h2>Envoi rattrapage — Factures seules</h2>
+    </div>
+    <p style="font-size:0.85rem;color:var(--gray);margin-bottom:14px;">
+      Envoyer uniquement la facture + CGV (sans contrat ni questionnaire) aux clients qui n'ont pas encore reçu leur facture.
+    </p>
+    <button class="btn" onclick="prepareBulkSend()" style="background:var(--blue-light);">📋 Voir les clients à contacter</button>
+    
+    <div id="bulk-list" style="display:none;margin-top:20px;"></div>
+    <div id="bulk-log" class="log" style="display:none;"></div>
+    <div id="bulk-final" class="final-status"></div>
+  </div>
 </div>
 
 <script>
@@ -183,6 +199,7 @@ async function loadSheet() {
       date: row[4] || '',
       moyen: row[5] || '',
       date2: row[6] || '',
+      deuxiemePaiement: row[7] || '',  // 🆕 Colonne H : "2eme paiement" (OUI/NON)
       facture: row[8] || '',
       // 🆕 Lecture du prix depuis la colonne K (index 10)
       prix: parseFloat(String(row[10] || '0').replace(/[^\d,.-]/g, '').replace(',', '.')) || 2000,
@@ -297,19 +314,44 @@ function resetWorkflow() {
 
 // ── GÉNÉRATION FACTURE HTML (prix dynamique) ──
 // ── GÉNÉRATION FACTURE DIRECTEMENT EN PDF (jsPDF) ──
-function generateInvoicePdfBlob(client) {
+// 🆕 Le paramètre 'mode' peut être : 'normal', 'acompte', 'solde'
+function generateInvoicePdfBlob(client, mode = 'normal') {
   const prixTotal = client.prix;
   const montantNum = client.paiement === '2x' ? prixTotal / 2 : prixTotal;
   const montant = montantNum.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const prixTotalFormat = prixTotal.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   
-  const descLigne1 = client.paiement === '2x' ? 'Acompte de 50% — Action de formation LEWA' : 'Action de formation LEWA';
-  const descLigne2 = client.paiement === '2x' 
-    ? `Acompte de 50% à la commande sur un total de ${prixTotalFormat} €.` 
-    : 'Paiement en une fois.';
-  const moyenLabel = client.moyen === 'Stripe' 
-    ? `Paiement effectué par carte bancaire le ${client.date}.` 
-    : `Paiement effectué par virement bancaire le ${client.date}.`;
+  // 🆕 Adaptation selon le mode (1ère facture, 2ème facture, ou normale)
+  let descLigne1, descLigne2, numeroFacture, dateFacture, moyenLabel;
+  
+  if (mode === 'solde') {
+    // 2ème facture : solde du paiement en 2x
+    descLigne1 = 'Solde de 50% — Action de formation LEWA';
+    descLigne2 = `Solde de 50% sur un total de ${prixTotalFormat} €.`;
+    numeroFacture = 'F-2026-AUTO-2';
+    dateFacture = client.date2 || client.date;
+    moyenLabel = client.moyen === 'Stripe' 
+      ? `Paiement effectué par carte bancaire le ${dateFacture}.` 
+      : `Paiement effectué par virement bancaire le ${dateFacture}.`;
+  } else if (client.paiement === '2x') {
+    // 1ère facture : acompte
+    descLigne1 = 'Acompte de 50% — Action de formation LEWA';
+    descLigne2 = `Acompte de 50% à la commande sur un total de ${prixTotalFormat} €.`;
+    numeroFacture = 'F-2026-AUTO';
+    dateFacture = client.date;
+    moyenLabel = client.moyen === 'Stripe' 
+      ? `Paiement effectué par carte bancaire le ${dateFacture}.` 
+      : `Paiement effectué par virement bancaire le ${dateFacture}.`;
+  } else {
+    // Paiement 1x
+    descLigne1 = 'Action de formation LEWA';
+    descLigne2 = 'Paiement en une fois.';
+    numeroFacture = 'F-2026-AUTO';
+    dateFacture = client.date;
+    moyenLabel = client.moyen === 'Stripe' 
+      ? `Paiement effectué par carte bancaire le ${dateFacture}.` 
+      : `Paiement effectué par virement bancaire le ${dateFacture}.`;
+  }
   
   // Crée le PDF
   const { jsPDF } = window.jspdf;
@@ -332,9 +374,9 @@ function generateInvoicePdfBlob(client) {
   doc.setFontSize(10);
   doc.setTextColor(...grayColor);
   doc.setFont('helvetica', 'normal');
-  doc.text('Numéro : F-2026-AUTO', 20, y);
+  doc.text(`Numéro : ${numeroFacture}`, 20, y);
   y += 5;
-  doc.text(`Date : ${client.date}`, 20, y);
+  doc.text(`Date : ${dateFacture}`, 20, y);
   y += 12;
   
   // Parties : émetteur (gauche) et client (droite)
@@ -427,7 +469,7 @@ function generateInvoicePdfBlob(client) {
   doc.setTextColor(...grayColor);
   doc.setFontSize(9);
   doc.text(moyenLabel, 24, y + 12);
-  doc.text(`Facture acquittée le ${client.date}.`, 24, y + 17);
+  doc.text(`Facture acquittée le ${dateFacture}.`, 24, y + 17);
   doc.text('TVA non applicable, article 293 B du CGI.', 24, y + 22);
   y += 38;
   
@@ -680,6 +722,288 @@ hello@englishwithantoine.com
   } finally {
     btn.disabled = false;
     btn.textContent = '🚀 Lancer l\'onboarding complet';
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 🆕 ENVOI RATTRAPAGE — FACTURE + CGV SEULES (sans contrat ni questionnaire)
+// ═══════════════════════════════════════════════════════════════
+
+const EXCLUSIONS = ['caroline gauthier']; // Clients à exclure (en minuscules)
+const STOP_AT = 'radouane bouhafs'; // Dernier client inclus
+
+// Détermine quelle facture envoyer (ou ne rien envoyer) selon les règles
+// Modes possibles : 'skip', 'normal', 'acompte', 'solde', 'both' (acompte+solde)
+function getInvoiceMode(client) {
+  const facture = (client.facture || '').toUpperCase().trim();
+  const deuxiemePaiementFait = (client.deuxiemePaiement || '').toUpperCase().trim() === 'OUI';
+  
+  if (client.paiement === '2x') {
+    if (facture === 'OUI') return 'skip'; // Tout envoyé
+    if (facture === '1/2') {
+      // Acompte envoyé. Si 2eme paiement effectué → envoyer solde
+      if (deuxiemePaiementFait) return 'solde';
+      return 'skip'; // Solde pas encore reçu
+    }
+    // Facture vide
+    if (deuxiemePaiementFait) return 'both'; // 🆕 Les 2 paiements faits mais rien envoyé → envoyer les 2 factures
+    return 'acompte'; // 1ère facture (acompte) seulement
+  } else {
+    // Paiement 1x
+    if (facture === 'OUI') return 'skip';
+    return 'normal';
+  }
+}
+
+// Prépare et affiche la liste des clients à contacter
+function prepareBulkSend() {
+  const listDiv = document.getElementById('bulk-list');
+  const stopIndex = allClients.findIndex(c => c.nom.toLowerCase().includes(STOP_AT));
+  const clientsToProcess = stopIndex >= 0 ? allClients.slice(0, stopIndex + 1) : allClients;
+  
+  const candidates = clientsToProcess.filter(c => {
+    if (EXCLUSIONS.some(ex => c.nom.toLowerCase().includes(ex))) return false;
+    const mode = getInvoiceMode(c);
+    return mode !== 'skip';
+  });
+  
+  if (candidates.length === 0) {
+    listDiv.innerHTML = '<p style="color:var(--gray);font-style:italic;">Aucun client à contacter selon les règles.</p>';
+    listDiv.style.display = 'block';
+    return;
+  }
+  
+  let html = `
+    <h3 style="font-size:0.95rem;color:var(--blue);margin-bottom:12px;">📋 ${candidates.length} client(s) à contacter</h3>
+    <p style="font-size:0.8rem;color:var(--gray);margin-bottom:14px;">Décoche ceux que tu ne veux pas envoyer, puis clique "Envoyer tout".</p>
+    <div style="max-height:400px;overflow-y:auto;border:1px solid #E5E7EB;border-radius:8px;padding:10px;background:#FAFBFC;">
+  `;
+  
+  candidates.forEach((c, i) => {
+    const mode = getInvoiceMode(c);
+    let modeLabel;
+    if (mode === 'acompte') modeLabel = '💰 Acompte (1ère facture)';
+    else if (mode === 'solde') modeLabel = '💰 Solde (2ème facture)';
+    else if (mode === 'both') modeLabel = '💰💰 Acompte + Solde (2 factures)';
+    else modeLabel = '💰 Facture complète';
+    const hasEmail = !!c.email;
+    html += `
+      <div style="display:flex;align-items:center;gap:10px;padding:8px;border-bottom:1px solid #F0F4FA;">
+        <input type="checkbox" id="bulk-${i}" data-nom="${c.nom}" data-mode="${mode}" ${hasEmail ? 'checked' : ''} ${!hasEmail ? 'disabled' : ''} style="width:18px;height:18px;cursor:pointer;">
+        <label for="bulk-${i}" style="flex:1;font-size:0.85rem;cursor:pointer;">
+          <strong>${c.nom}</strong>
+          <span style="color:var(--gray);font-size:0.78rem;"> — ${c.email || '⚠️ Pas d\'email'}</span>
+          <br>
+          <span style="font-size:0.75rem;color:var(--blue-light);">${modeLabel}</span>
+        </label>
+      </div>
+    `;
+  });
+  
+  html += `</div>
+    <button class="btn btn-gold" onclick="executeBulkSend()" style="margin-top:16px;">📧 Envoyer tout</button>
+  `;
+  
+  listDiv.innerHTML = html;
+  listDiv.style.display = 'block';
+  
+  // Stocker les candidats globalement pour executeBulkSend
+  window._bulkCandidates = candidates;
+}
+
+// Log pour le mode bulk
+function bulkLog(msg, type = 'info') {
+  const logEl = document.getElementById('bulk-log');
+  logEl.classList.add('visible');
+  logEl.style.display = 'block';
+  const line = document.createElement('div');
+  line.className = `log-line ${type}`;
+  const time = new Date().toLocaleTimeString('fr-FR');
+  const icons = { success: '✅', error: '❌', info: '→', warn: '⚠️' };
+  line.textContent = `[${time}] ${icons[type]} ${msg}`;
+  logEl.appendChild(line);
+  logEl.scrollTop = logEl.scrollHeight;
+}
+
+// Envoie un seul client (facture + CGV uniquement, pas de contrat ni questionnaire)
+async function sendInvoiceOnly(client, mode, cgvBlob, cgvBase64) {
+  const prenom = client.nom.split(' ')[0];
+  const nomFichier = client.nom.replace(/\s+/g, '_');
+  
+  // 🆕 Préparation des factures selon le mode
+  let factureBlob1, factureBlob2 = null;
+  let fileName1, fileName2 = null;
+  
+  if (mode === 'both') {
+    // Cas spécial : on envoie ACOMPTE + SOLDE dans le même mail
+    factureBlob1 = generateInvoicePdfBlob(client, 'acompte');
+    fileName1 = `Facture_Acompte_${nomFichier}.pdf`;
+    factureBlob2 = generateInvoicePdfBlob(client, 'solde');
+    fileName2 = `Facture_Solde_${nomFichier}.pdf`;
+  } else if (mode === 'solde') {
+    factureBlob1 = generateInvoicePdfBlob(client, 'solde');
+    fileName1 = `Facture_Solde_${nomFichier}.pdf`;
+  } else if (mode === 'acompte') {
+    factureBlob1 = generateInvoicePdfBlob(client, 'acompte');
+    fileName1 = `Facture_Acompte_${nomFichier}.pdf`;
+  } else {
+    // Normal (paiement 1x)
+    factureBlob1 = generateInvoicePdfBlob(client, 'normal');
+    fileName1 = `Facture_${nomFichier}.pdf`;
+  }
+  
+  // 🆕 Message adapté selon le mode
+  let messageIntro;
+  if (mode === 'both') {
+    messageIntro = `Suite à tes paiements, tu trouveras en pièces jointes :
+📎 Ta facture d'acompte (1er versement)
+📎 Ta facture de solde (2ème versement)
+📎 Nos conditions générales de vente (CGV)`;
+  } else if (mode === 'solde') {
+    messageIntro = `Suite à ton 2ème paiement, tu trouveras en pièces jointes :
+📎 Ta facture de solde
+📎 Nos conditions générales de vente (CGV)`;
+  } else if (mode === 'acompte') {
+    messageIntro = `Suite à ton paiement, tu trouveras en pièces jointes :
+📎 Ta facture d'acompte
+📎 Nos conditions générales de vente (CGV)`;
+  } else {
+    messageIntro = `Suite à ton paiement, tu trouveras en pièces jointes :
+📎 Ta facture
+📎 Nos conditions générales de vente (CGV)`;
+  }
+  
+  const message = `Bonjour ${prenom},
+
+${messageIntro}
+
+À très vite,
+Antoine
+
+—
+Learn Languages With Antoine
+hello@englishwithantoine.com
++33 7 43 01 67 55`;
+
+  // Créer le formulaire pour EmailJS (méthode sendForm avec File Attachments)
+  const form = document.createElement('form');
+  form.style.display = 'none';
+  
+  const fields = {
+    subject: 'Votre facture LEWA Academy',
+    to_email: client.email,
+    message: message
+  };
+  for (const [name, value] of Object.entries(fields)) {
+    const input = document.createElement('input');
+    input.type = 'hidden';
+    input.name = name;
+    input.value = value;
+    form.appendChild(input);
+  }
+  
+  // Pièce jointe Facture 1
+  const factureInput = document.createElement('input');
+  factureInput.type = 'file';
+  factureInput.name = 'facture';
+  const factureFile = new File([factureBlob1], fileName1, { type: 'application/pdf' });
+  const factureDT = new DataTransfer();
+  factureDT.items.add(factureFile);
+  factureInput.files = factureDT.files;
+  form.appendChild(factureInput);
+  
+  // 🆕 Pièce jointe Facture 2 (si mode 'both')
+  if (factureBlob2) {
+    const facture2Input = document.createElement('input');
+    facture2Input.type = 'file';
+    facture2Input.name = 'facture2';
+    const facture2File = new File([factureBlob2], fileName2, { type: 'application/pdf' });
+    const facture2DT = new DataTransfer();
+    facture2DT.items.add(facture2File);
+    facture2Input.files = facture2DT.files;
+    form.appendChild(facture2Input);
+  }
+  
+  // Pièce jointe CGV
+  const cgvInput = document.createElement('input');
+  cgvInput.type = 'file';
+  cgvInput.name = 'cgv';
+  const cgvFile = new File([cgvBlob], 'CGV_LEWA_Academy.pdf', { type: 'application/pdf' });
+  const cgvDT = new DataTransfer();
+  cgvDT.items.add(cgvFile);
+  cgvInput.files = cgvDT.files;
+  form.appendChild(cgvInput);
+  
+  document.body.appendChild(form);
+  
+  try {
+    await emailjs.sendForm(CONFIG.EMAILJS_SERVICE_ID, CONFIG.EMAILJS_TEMPLATE_ID, form);
+  } finally {
+    document.body.removeChild(form);
+  }
+}
+
+// Exécute l'envoi en masse
+async function executeBulkSend() {
+  const candidates = window._bulkCandidates || [];
+  const selected = candidates.filter((c, i) => {
+    const cb = document.getElementById(`bulk-${i}`);
+    return cb && cb.checked && !cb.disabled;
+  });
+  
+  if (selected.length === 0) {
+    alert('Aucun client sélectionné.');
+    return;
+  }
+  
+  if (!confirm(`Envoyer la facture + CGV à ${selected.length} client(s) ?`)) return;
+  
+  // Reset du log
+  document.getElementById('bulk-log').innerHTML = '';
+  document.getElementById('bulk-final').innerHTML = '';
+  document.getElementById('bulk-final').classList.remove('visible');
+  
+  bulkLog(`Démarrage envoi en masse pour ${selected.length} client(s)`, 'info');
+  bulkLog('Récupération du PDF des CGV (1 seule fois pour tous)...', 'info');
+  
+  try {
+    const cgvBlob = await fetchCGV();
+    const cgvBase64 = await blobToBase64(cgvBlob);
+    bulkLog(`CGV récupérées (${Math.round(cgvBlob.size / 1024)} Ko) ✅`, 'success');
+    
+    let success = 0;
+    let errors = 0;
+    
+    for (let i = 0; i < selected.length; i++) {
+      const c = selected[i];
+      const mode = getInvoiceMode(c);
+      bulkLog(`[${i+1}/${selected.length}] ${c.nom} (${mode}) → ${c.email}...`, 'info');
+      
+      try {
+        await sendInvoiceOnly(c, mode, cgvBlob, cgvBase64);
+        bulkLog(`[${i+1}/${selected.length}] ✅ Envoyé à ${c.email}`, 'success');
+        success++;
+        // Petite pause entre les envois pour éviter de spammer EmailJS
+        await new Promise(r => setTimeout(r, 1500));
+      } catch (err) {
+        bulkLog(`[${i+1}/${selected.length}] ❌ Erreur pour ${c.nom}: ${err.text || err.message}`, 'error');
+        errors++;
+      }
+    }
+    
+    bulkLog(`Terminé : ${success} envoyés, ${errors} erreurs`, success > 0 ? 'success' : 'error');
+    
+    const finalDiv = document.getElementById('bulk-final');
+    finalDiv.innerHTML = `
+      <div class="big-icon">${errors === 0 ? '🎉' : '⚠️'}</div>
+      <h3>Envoi en masse terminé !</h3>
+      <p>✅ ${success} email(s) envoyé(s) avec succès</p>
+      ${errors > 0 ? `<p>❌ ${errors} erreur(s)</p>` : ''}
+    `;
+    finalDiv.classList.add('visible');
+    
+  } catch (err) {
+    bulkLog(`Erreur globale: ${err.message}`, 'error');
   }
 }
 
