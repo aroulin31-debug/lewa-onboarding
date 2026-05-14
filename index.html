@@ -318,8 +318,16 @@ function resetWorkflow() {
 function generateInvoicePdfBlob(client, mode = 'normal') {
   const prixTotal = client.prix;
   const montantNum = client.paiement === '2x' ? prixTotal / 2 : prixTotal;
-  const montant = montantNum.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  const prixTotalFormat = prixTotal.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  
+  // 🆕 Formatage manuel des nombres en français (pour éviter tous les problèmes d'espaces dans jsPDF)
+  const formatMoney = (n) => {
+    const parts = n.toFixed(2).split('.');
+    // Séparateur de milliers : espace normal
+    const intPart = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+    return intPart + ',' + parts[1] + ' EUR';
+  };
+  const montant = formatMoney(montantNum);
+  const prixTotalFormat = formatMoney(prixTotal);
   
   // 🆕 Adaptation selon le mode (1ère facture, 2ème facture, ou normale)
   let descLigne1, descLigne2, numeroFacture, dateFacture, moyenLabel;
@@ -327,7 +335,7 @@ function generateInvoicePdfBlob(client, mode = 'normal') {
   if (mode === 'solde') {
     // 2ème facture : solde du paiement en 2x
     descLigne1 = 'Solde de 50% — Action de formation LEWA';
-    descLigne2 = `Solde de 50% sur un total de ${prixTotalFormat} €.`;
+    descLigne2 = `Solde de 50% sur un total de ${prixTotalFormat}.`;
     numeroFacture = 'F-2026-AUTO-2';
     dateFacture = client.date2 || client.date;
     moyenLabel = client.moyen === 'Stripe' 
@@ -336,7 +344,7 @@ function generateInvoicePdfBlob(client, mode = 'normal') {
   } else if (client.paiement === '2x') {
     // 1ère facture : acompte
     descLigne1 = 'Acompte de 50% — Action de formation LEWA';
-    descLigne2 = `Acompte de 50% à la commande sur un total de ${prixTotalFormat} €.`;
+    descLigne2 = `Acompte de 50% à la commande sur un total de ${prixTotalFormat}.`;
     numeroFacture = 'F-2026-AUTO';
     dateFacture = client.date;
     moyenLabel = client.moyen === 'Stripe' 
@@ -434,10 +442,10 @@ function generateInvoicePdfBlob(client, mode = 'normal') {
   
   doc.setFontSize(10);
   doc.text('1', 110, y - 2);
-  doc.text(`${montant} €`, 125, y - 2);
+  doc.text(`${montant}`, 125, y - 2);
   doc.text('0%', 150, y - 2);
   doc.setFont('helvetica', 'bold');
-  doc.text(`${montant} €`, 168, y - 2);
+  doc.text(`${montant}`, 168, y - 2);
   
   y += Math.max(8, descLines.length * 4);
   doc.setDrawColor(230, 230, 230);
@@ -448,14 +456,14 @@ function generateInvoicePdfBlob(client, mode = 'normal') {
   doc.setFontSize(10);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(...grayColor);
-  doc.text(`TOTAL HT : ${montant} €`, 190, y, { align: 'right' });
+  doc.text(`TOTAL HT : ${montant}`, 190, y, { align: 'right' });
   y += 5;
-  doc.text('TOTAL TVA : 0,00 €', 190, y, { align: 'right' });
+  doc.text('TOTAL TVA : 0,00 EUR', 190, y, { align: 'right' });
   y += 6;
   doc.setFontSize(12);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(...blueColor);
-  doc.text(`TOTAL TTC : ${montant} €`, 190, y, { align: 'right' });
+  doc.text(`TOTAL TTC : ${montant}`, 190, y, { align: 'right' });
   y += 15;
   
   // Encadré paiement
