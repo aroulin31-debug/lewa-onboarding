@@ -150,6 +150,9 @@ const CONFIG = {
   EMAILJS_PUBLIC_KEY: '2K3xrox1AphpDCL2k',
   QUESTIONNAIRE: 'https://forms.gle/e171r44qzrzX2qUN7',
   DOCUSEAL_LINK: 'https://docuseal.com/d/DH2qvS9w2rJQgS',
+  // 🆕 Configuration DocuSeal API
+  DOCUSEAL_API_KEY: 'wAkDZ2Fokp5rqFkBVREKF178KY2xZWSLk64JF5vfKwY',
+  DOCUSEAL_TEMPLATE_ID: 3668964,
   SHEETS_API_KEY: 'AIzaSyDDOCe3FowhAtn1r0NiVg7J-JtLlsbfKJ4',
   SHEET_ID: '19PDgyVW-X52S_GKf_62InfDkLu9T2t3_n7vg_39OTco',
   SHEET_RANGE: 'clients!A:K',  // 🆕 Onglet renommé en "clients" (simple, sans espace ni accent)
@@ -460,6 +463,61 @@ async function fetchCGV() {
   return await res.blob();
 }
 
+// 🆕 ── CRÉATION D'UN CONTRAT DOCUSEAL PRÉ-REMPLI ──
+async function createDocuSealContract(client, email) {
+  const prenom = client.nom.split(' ')[0];
+  
+  // Champs à pré-remplir (correspondant au template DocuSeal)
+  const fields = [
+    { name: 'nom_prenom', value: client.nom },
+    { name: 'adresse', value: client.adresse || '' },
+    { name: 'email', value: email },
+  ];
+  
+  // Ajouter le téléphone seulement s'il existe (optionnel)
+  if (client.telephone) {
+    fields.push({ name: 'telephone', value: client.telephone });
+  }
+  
+  // Préparer le payload pour DocuSeal
+  const payload = {
+    template_id: CONFIG.DOCUSEAL_TEMPLATE_ID,
+    send_email: false,  // 🆕 Ne pas envoyer d'email depuis DocuSeal (on l'envoie nous-mêmes)
+    submitters: [
+      {
+        role: 'First Party',
+        email: email,
+        name: client.nom,
+        fields: fields
+      }
+    ]
+  };
+  
+  // Appel à l'API DocuSeal
+  const response = await fetch('https://api.docuseal.com/submissions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Auth-Token': CONFIG.DOCUSEAL_API_KEY
+    },
+    body: JSON.stringify(payload)
+  });
+  
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`DocuSeal API ${response.status}: ${errorText}`);
+  }
+  
+  const data = await response.json();
+  
+  // DocuSeal renvoie un tableau de submitters avec leurs slugs
+  if (data && data.length > 0 && data[0].slug) {
+    return `https://docuseal.com/s/${data[0].slug}`;
+  }
+  
+  throw new Error('Pas de lien de signature retourné par DocuSeal');
+}
+
 // ── LANCEMENT ONBOARDING ──
 async function launchOnboarding() {
   if (!currentClient) { alert('Veuillez d\'abord rechercher un client.'); return; }
@@ -502,12 +560,20 @@ async function launchOnboarding() {
     setStep(1, 'success');
     setProgress(40, 'Facture + CGV prêtes ✅');
 
-    // ── ÉTAPE 2 : DocuSeal ──
+    // ── ÉTAPE 2 : DocuSeal — Création d'un contrat pré-rempli ──
     setStep(2, 'loading');
-    setProgress(55, 'Préparation du contrat...');
-    log('Préparation du lien DocuSeal...', 'info');
-    const docuSealLink = CONFIG.DOCUSEAL_LINK;
-    log('Lien contrat prêt ✅', 'success');
+    setProgress(55, 'Création du contrat personnalisé...');
+    log('Création du contrat DocuSeal pré-rempli...', 'info');
+    
+    let docuSealLink;
+    try {
+      docuSealLink = await createDocuSealContract(currentClient, email);
+      log(`Contrat personnalisé créé pour ${currentClient.nom} ✅`, 'success');
+    } catch (docuSealErr) {
+      // Si DocuSeal échoue, on retombe sur le lien générique
+      log(`⚠️ DocuSeal API a échoué (${docuSealErr.message}), utilisation du lien générique`, 'warn');
+      docuSealLink = CONFIG.DOCUSEAL_LINK;
+    }
     setStep(2, 'success');
     setProgress(70, 'Contrat prêt ✅');
 
