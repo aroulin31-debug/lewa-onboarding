@@ -305,23 +305,90 @@ function generateInvoiceHTML(client) {
     : 'Paiement en une fois.';
   const moyenLabel = client.moyen === 'Stripe' ? `Paiement effectué par carte bancaire le ${client.date}.` : `Paiement effectué par virement bancaire le ${client.date}.`;
   
-  return `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>body{font-family:Arial,sans-serif;font-size:13px;color:#333;margin:40px}h1{font-size:28px;color:#1A3C6E;margin-bottom:4px}.meta{color:#555;font-size:12px;margin-bottom:20px}.parties{display:flex;justify-content:space-between;margin-bottom:24px}.partie{width:48%}.partie strong{display:block;font-size:13px;color:#1A3C6E;margin-bottom:6px}.partie p{margin:2px 0;font-size:12px}hr{border:none;border-top:1px solid #ddd;margin:20px 0}table{width:100%;border-collapse:collapse;margin-bottom:20px}th{background:#f0f4fa;color:#1A3C6E;padding:8px 10px;text-align:left;font-size:12px}td{padding:10px;border-bottom:1px solid #eee;font-size:12px}.totaux{text-align:right;margin-bottom:20px}.totaux div{margin:4px 0}.total-ttc{font-weight:bold;font-size:14px;color:#1A3C6E}.paiement{background:#f8faff;border-radius:8px;padding:14px;font-size:12px;color:#555}.footer{margin-top:40px;font-size:10px;color:#999;border-top:1px solid #eee;padding-top:10px}</style></head><body><h1>Facture</h1><div class="meta">Numéro : F-2026-AUTO<br>Date : ${client.date}</div><div class="parties"><div class="partie"><strong>Learn Languages With Antoine</strong><p>60 rue François 1er, 75008 Paris</p><p>hello@englishwithantoine.com</p><p>SIREN : 102244829</p></div><div class="partie"><strong>${client.nom}</strong><p>${client.adresse||''}</p><p>${client.email||''}</p></div></div><hr><table><thead><tr><th>Description</th><th>Qté</th><th>Prix HT</th><th>TVA</th><th>Total TTC</th></tr></thead><tbody><tr><td><strong>${descLigne1}</strong><br>${descLigne2}</td><td>1</td><td>${montant} €</td><td>0%</td><td><strong>${montant} €</strong></td></tr></tbody></table><div class="totaux"><div>TOTAL HT : ${montant} €</div><div>TOTAL TVA : 0,00 €</div><div class="total-ttc">TOTAL TTC : ${montant} €</div></div><div class="paiement"><strong>Paiement</strong><br>${moyenLabel}<br>Facture acquittée le ${client.date}.<br>TVA non applicable, article 293 B du CGI.</div><div class="footer">Learn Languages With Antoine, SASU, SIREN N°102244829, 60 rue François 1er 75008 Paris</div></body></html>`;
+  return `
+  <div style="font-family:Arial,sans-serif;font-size:13px;color:#333;padding:20mm;background:white;width:170mm;">
+    <h1 style="font-size:28px;color:#1A3C6E;margin:0 0 4px 0;">Facture</h1>
+    <div style="color:#555;font-size:12px;margin-bottom:20px;">
+      Numéro : F-2026-AUTO<br>
+      Date : ${client.date}
+    </div>
+    <div style="display:flex;justify-content:space-between;margin-bottom:24px;">
+      <div style="width:48%;">
+        <strong style="display:block;font-size:13px;color:#1A3C6E;margin-bottom:6px;">Learn Languages With Antoine</strong>
+        <p style="margin:2px 0;font-size:12px;">60 rue François 1er, 75008 Paris</p>
+        <p style="margin:2px 0;font-size:12px;">hello@englishwithantoine.com</p>
+        <p style="margin:2px 0;font-size:12px;">SIREN : 102244829</p>
+      </div>
+      <div style="width:48%;">
+        <strong style="display:block;font-size:13px;color:#1A3C6E;margin-bottom:6px;">${client.nom}</strong>
+        <p style="margin:2px 0;font-size:12px;">${client.adresse||''}</p>
+        <p style="margin:2px 0;font-size:12px;">${client.email||''}</p>
+      </div>
+    </div>
+    <hr style="border:none;border-top:1px solid #ddd;margin:20px 0;">
+    <table style="width:100%;border-collapse:collapse;margin-bottom:20px;">
+      <thead>
+        <tr>
+          <th style="background:#f0f4fa;color:#1A3C6E;padding:8px 10px;text-align:left;font-size:12px;">Description</th>
+          <th style="background:#f0f4fa;color:#1A3C6E;padding:8px 10px;text-align:left;font-size:12px;">Qté</th>
+          <th style="background:#f0f4fa;color:#1A3C6E;padding:8px 10px;text-align:left;font-size:12px;">Prix HT</th>
+          <th style="background:#f0f4fa;color:#1A3C6E;padding:8px 10px;text-align:left;font-size:12px;">TVA</th>
+          <th style="background:#f0f4fa;color:#1A3C6E;padding:8px 10px;text-align:left;font-size:12px;">Total TTC</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td style="padding:10px;border-bottom:1px solid #eee;font-size:12px;">
+            <strong>${descLigne1}</strong><br>${descLigne2}
+          </td>
+          <td style="padding:10px;border-bottom:1px solid #eee;font-size:12px;">1</td>
+          <td style="padding:10px;border-bottom:1px solid #eee;font-size:12px;">${montant} €</td>
+          <td style="padding:10px;border-bottom:1px solid #eee;font-size:12px;">0%</td>
+          <td style="padding:10px;border-bottom:1px solid #eee;font-size:12px;"><strong>${montant} €</strong></td>
+        </tr>
+      </tbody>
+    </table>
+    <div style="text-align:right;margin-bottom:20px;">
+      <div style="margin:4px 0;">TOTAL HT : ${montant} €</div>
+      <div style="margin:4px 0;">TOTAL TVA : 0,00 €</div>
+      <div style="font-weight:bold;font-size:14px;color:#1A3C6E;margin:4px 0;">TOTAL TTC : ${montant} €</div>
+    </div>
+    <div style="background:#f8faff;border-radius:8px;padding:14px;font-size:12px;color:#555;">
+      <strong>Paiement</strong><br>
+      ${moyenLabel}<br>
+      Facture acquittée le ${client.date}.<br>
+      TVA non applicable, article 293 B du CGI.
+    </div>
+    <div style="margin-top:40px;font-size:10px;color:#999;border-top:1px solid #eee;padding-top:10px;">
+      Learn Languages With Antoine, SASU, SIREN N°102244829, 60 rue François 1er 75008 Paris
+    </div>
+  </div>
+  `;
 }
 
 // ── CONVERSION HTML → PDF (Blob) ──
 async function htmlToPdfBlob(htmlString) {
+  // Crée un container visible mais hors écran pour que le navigateur le rende
   const container = document.createElement('div');
   container.innerHTML = htmlString;
-  container.style.position = 'absolute';
-  container.style.left = '-10000px';
+  container.style.position = 'fixed';
+  container.style.top = '0';
+  container.style.left = '0';
+  container.style.width = '210mm';
+  container.style.background = 'white';
+  container.style.zIndex = '-9999';
+  container.style.opacity = '0.01';
   document.body.appendChild(container);
+  
+  // Attend que le DOM soit rendu (important pour html2pdf)
+  await new Promise(resolve => setTimeout(resolve, 200));
   
   try {
     const opt = {
-      margin: 0,
+      margin: 10,
       filename: 'facture.pdf',
       image: { type: 'jpeg', quality: 0.95 },
-      html2canvas: { scale: 2, useCORS: true },
+      html2canvas: { scale: 2, useCORS: true, logging: false, backgroundColor: '#ffffff' },
       jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
     };
     const blob = await html2pdf().set(opt).from(container).outputPdf('blob');
